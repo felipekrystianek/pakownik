@@ -411,6 +411,7 @@ let state = {
   collapsed: {},
   weightMode: false,
   weightLimit: 20000,
+  autoSort: false,
 };
 
 // ── Utils ─────────────────────────────────────────────────────────────────────
@@ -446,6 +447,7 @@ function saveState() {
   try { localStorage.setItem(LS_KEY, JSON.stringify({
     listName:state.listName, items:state.items, collapsed:state.collapsed,
     weightMode:state.weightMode, weightLimit:state.weightLimit,
+    autoSort:state.autoSort,
   })); } catch(e) {}
 }
 function loadState() {
@@ -458,6 +460,7 @@ function loadState() {
     if (s.collapsed&&typeof s.collapsed==='object') state.collapsed=s.collapsed;
     if (s.weightMode===true) state.weightMode=true;
     if (Number.isFinite(s.weightLimit)&&s.weightLimit>0) state.weightLimit=s.weightLimit;
+    if (typeof s.autoSort === 'boolean') state.autoSort = s.autoSort;
   } catch(e) {}
 }
 
@@ -552,7 +555,7 @@ function renderItems() {
       const body=document.createElement('div');
       body.dataset.cat=cat.id;
       const sorted=[...catItems].sort((a,b)=>{
-        if(a.packed!==b.packed) return Number(a.packed)-Number(b.packed);
+        if(state.autoSort && a.packed!==b.packed) return Number(a.packed)-Number(b.packed);
         return (a.order||0)-(b.order||0);
       });
       sorted.forEach(item=>{
@@ -818,6 +821,21 @@ document.getElementById('importFileInput').addEventListener('change', e=>{
 
 document.addEventListener('DOMContentLoaded', ()=>{
   document.getElementById('catSelect').innerHTML=CATEGORIES.map(c=>`<option value="${c.id}">${c.name}</option>`).join('');
+  
+  // Dodaj przycisk sortowania
+  document.getElementById('btnDarkMode').insertAdjacentHTML('beforebegin', `
+    <button id="btnToggleSort" title="Sortuj spakowane na dół" class="icon-btn mr-2">
+      <span class="material-symbols-outlined" id="sortIcon">low_priority</span>
+    </button>
+  `);
+  
+  document.getElementById('btnToggleSort').addEventListener('click', () => {
+    state.autoSort = !state.autoSort;
+    saveState();
+    render();
+    toast(state.autoSort ? 'Włączono sortowanie spakowanych' : 'Wyłączono sortowanie spakowanych');
+  });
+  
   document.getElementById('btnWeightMode').addEventListener('click', e=>{
     if(e.target.tagName==='INPUT') return;
     state.weightMode=!state.weightMode; saveState(); render();
@@ -904,6 +922,11 @@ function render(){
   if(document.activeElement!==nameEl) nameEl.value=state.listName;
   const wEl=document.getElementById('weightLimit');
   if(document.activeElement!==wEl) wEl.value=state.weightLimit;
+  
+  // Aktualizacja koloru ikony sortowania
+  const sortIcon = document.getElementById('sortIcon');
+  if(sortIcon) sortIcon.style.color = state.autoSort ? 'var(--teal)' : 'var(--text-muted)';
+  
   renderTabs(); renderItems(); renderStats();
 }
 </script>
