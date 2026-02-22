@@ -114,9 +114,14 @@ body { min-height: max(884px, 100dvh); transition: background-color 0.3s, color 
 
   <!-- Header -->
   <header class="text-center mb-10 md:mb-16 relative">
-    <button id="btnDarkMode" title="Przełącz motyw" class="icon-btn absolute right-0 top-0 hover:border-transparent" style="hover:background:var(--dusk)">
-      <span class="material-symbols-outlined" id="darkModeIcon">dark_mode</span>
-    </button>
+    <div class="absolute right-0 top-0 flex gap-2">
+      <button id="btnToggleSort" title="Sortuj spakowane na dół" class="icon-btn hover:border-[var(--teal)]">
+        <span class="material-symbols-outlined" id="sortIcon">low_priority</span>
+      </button>
+      <button id="btnDarkMode" title="Przełącz motyw" class="icon-btn hover:border-transparent">
+        <span class="material-symbols-outlined" id="darkModeIcon">dark_mode</span>
+      </button>
+    </div>
     <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full shadow-sm mb-4" style="background:var(--surface);border:1px solid var(--border)">
       <span class="text-[10px] font-bold tracking-widest uppercase text-[var(--coral)]">Wakacje 2025</span>
     </div>
@@ -822,13 +827,6 @@ document.getElementById('importFileInput').addEventListener('change', e=>{
 document.addEventListener('DOMContentLoaded', ()=>{
   document.getElementById('catSelect').innerHTML=CATEGORIES.map(c=>`<option value="${c.id}">${c.name}</option>`).join('');
   
-  // Dodaj przycisk sortowania
-  document.getElementById('btnDarkMode').insertAdjacentHTML('beforebegin', `
-    <button id="btnToggleSort" title="Sortuj spakowane na dół" class="icon-btn mr-2">
-      <span class="material-symbols-outlined" id="sortIcon">low_priority</span>
-    </button>
-  `);
-  
   document.getElementById('btnToggleSort').addEventListener('click', () => {
     state.autoSort = !state.autoSort;
     saveState();
@@ -923,9 +921,15 @@ function render(){
   const wEl=document.getElementById('weightLimit');
   if(document.activeElement!==wEl) wEl.value=state.weightLimit;
   
-  // Aktualizacja koloru ikony sortowania
+  // Aktualizacja koloru i obramowania przycisku sortowania
+  const sortBtn = document.getElementById('btnToggleSort');
   const sortIcon = document.getElementById('sortIcon');
-  if(sortIcon) sortIcon.style.color = state.autoSort ? 'var(--teal)' : 'var(--text-muted)';
+  if(sortIcon && sortBtn) {
+    const isActive = state.autoSort;
+    sortIcon.style.color = isActive ? 'var(--teal)' : 'var(--text-muted)';
+    sortBtn.style.borderColor = isActive ? 'var(--teal)' : 'var(--border)';
+    sortIcon.textContent = isActive ? 'low_priority' : 'reorder';
+  }
   
   renderTabs(); renderItems(); renderStats();
 }
