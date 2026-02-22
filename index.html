@@ -98,6 +98,11 @@ body { min-height: max(884px, 100dvh); transition: background-color 0.3s, color 
   align-items: center; gap: 12px;
 }
 #pwa-banner.show { display: flex; }
+
+/* Always-visible counter */
+#stickyCounter { position: fixed; right: 16px; bottom: 16px; z-index: 40; }
+@media (min-width: 768px) { #stickyCounter { right: 24px; bottom: 24px; } }
+@media print { #stickyCounter { position: static; right: auto; bottom: auto; margin: 0 0 8px 0; } }
 </style>
 </head>
 <body class="min-h-screen relative overflow-x-hidden selection:bg-[var(--coral)] selection:text-white">
@@ -122,6 +127,13 @@ body { min-height: max(884px, 100dvh); transition: background-color 0.3s, color 
       Inteligentna lista pakowania. Spakuj się bez stresu.
     </p>
   </header>
+
+  <!-- Always-visible counter -->
+  <div id="stickyCounter" aria-live="polite">
+    <div class="px-3 py-2 rounded-xl shadow-sm text-xs font-mono" style="background:var(--surface);border:1px solid var(--border);color:var(--text-muted)">
+      Razem: <strong id="stickyTotal" style="color:var(--text-main)">0</strong> · Spakowane: <strong id="stickyPacked" style="color:var(--text-main)">0</strong> (<span id="stickyPct">0%</span>)
+    </div>
+  </div>
 
   <!-- Dashboard -->
   <section class="mb-12">
@@ -457,6 +469,10 @@ function renderStats() {
   document.getElementById('packedCount').textContent=packed;
   document.getElementById('progressPct').textContent=pct+'%';
   document.getElementById('progressFill').style.width=pct+'%';
+  // Update always-visible counter
+  const st=document.getElementById('stickyTotal'); if(st) st.textContent=total;
+  const sp=document.getElementById('stickyPacked'); if(sp) sp.textContent=packed;
+  const sP=document.getElementById('stickyPct'); if(sP) sP.textContent=pct+'%';
   const totalG=state.items.reduce((s,i)=>s+(i.weight||0)*i.qty,0);
   const limit=state.weightLimit||1;
   const wPct=Math.min(100,Math.round(totalG/limit*100));
