@@ -592,7 +592,7 @@ function buildRowHTML(item) {
         value="${w}" min="0" max="99999" data-action="weight" data-id="${item.id}">
       <span class="text-[10px]" style="color:var(--text-muted)">g</span>
     </div>
-    <div class="flex items-center gap-1 opacity-100 lg:opacity-0 lg:group-hover/item:opacity-100 transition-opacity">
+    <div class="flex items-center gap-1">
       <div class="flex items-center rounded-lg h-7 mr-1" style="border:1px solid var(--border);background:var(--surface)">
         <button class="w-6 h-full flex items-center justify-center rounded-l-lg hover:opacity-70 transition-opacity" style="color:var(--text-muted)" data-action="dec" data-id="${item.id}">-</button>
         <span class="text-xs font-mono font-medium px-1 min-w-[1.5rem] text-center" style="color:var(--text-main)">${item.qty}</span>
