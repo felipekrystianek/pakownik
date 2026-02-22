@@ -1,0 +1,895 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<meta name="theme-color" content="#2D2438" media="(prefers-color-scheme: dark)"/>
+<meta name="theme-color" content="#FFF8F0" media="(prefers-color-scheme: light)"/>
+<meta name="description" content="Inteligentna lista pakowania. Spakuj się bez stresu."/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="default"/>
+<meta name="apple-mobile-web-app-title" content="Pakownik"/>
+<link rel="manifest" id="pwa-manifest"/>
+<title>Pakownik - Inteligentna Lista Pakowania</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=DM+Mono:wght@300;400;500&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<style type="text/tailwindcss">
+:root {
+  --sand: #FFF8F0;
+  --sand-dark: #F2E6D8;
+  --dusk: #2D2438;
+  --coral: #FF6B6B;
+  --coral-hover: #EE5D5D;
+  --teal: #4ECDC4;
+  --teal-dark: #3DBDB4;
+  --yellow: #FFE66D;
+  --surface: #FFFFFF;
+  --surface2: #F9F5F0;
+  --border: #E8E0D6;
+  --text-muted: #78716c;
+  --text-main: #2D2438;
+}
+.dark {
+  --sand: #13111A;
+  --dusk: #EDE8FF;
+  --coral: #FF8080;
+  --coral-hover: #FF6B6B;
+  --surface: #1E1B2E;
+  --surface2: #252235;
+  --border: #332E4A;
+  --text-muted: #9991BB;
+  --text-main: #EDE8FF;
+}
+body {
+  background-color: var(--sand);
+  color: var(--text-main);
+  font-family: 'Inter', sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+h1, h2, h3, h4 { font-family: 'Playfair Display', serif; }
+.font-mono { font-family: 'DM Mono', monospace; }
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+@keyframes check-pop {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.2); }
+  100% { transform: scale(1); }
+}
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-check { animation: check-pop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+.item-row { transition: background-color 0.2s, opacity 0.3s, transform 0.3s; }
+.item-row.packed { background-color: rgba(78,205,196,0.08); }
+.item-row.packed .item-text { text-decoration: line-through; color: var(--text-muted); }
+.item-row.dragging { opacity: 0.35; }
+.item-row.drag-over { outline: 2px solid var(--teal); outline-offset: -2px; border-radius: 4px; }
+.drag-handle { cursor: grab; }
+.drag-handle:active { cursor: grabbing; }
+.dash-card {
+  @apply p-5 rounded-2xl shadow-sm flex flex-col justify-between transition-all duration-300 hover:shadow-md hover:-translate-y-1;
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+}
+.icon-btn {
+  @apply inline-flex items-center justify-center w-10 h-10 rounded-full transition-colors;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  background: var(--surface);
+}
+</style>
+<style>
+body { min-height: max(884px, 100dvh); transition: background-color 0.3s, color 0.2s; }
+* { transition: background-color 0.25s, border-color 0.25s; }
+.animate-check, .check-btn span { transition: none !important; }
+
+#pwa-banner {
+  display: none;
+  position: fixed;
+  bottom: 0; left: 0; right: 0; z-index: 100;
+  padding: 14px 20px;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  box-shadow: 0 -4px 20px rgba(0,0,0,0.12);
+  align-items: center; gap: 12px;
+}
+#pwa-banner.show { display: flex; }
+</style>
+</head>
+<body class="min-h-screen relative overflow-x-hidden selection:bg-[var(--coral)] selection:text-white">
+
+<div class="fixed top-0 right-0 w-[600px] h-[600px] bg-[radial-gradient(circle,rgba(255,107,107,0.07)_0%,transparent_70%)] -translate-y-1/2 translate-x-1/3 pointer-events-none z-0"></div>
+<div class="fixed bottom-0 left-0 w-[500px] h-[500px] bg-[radial-gradient(circle,rgba(78,205,196,0.07)_0%,transparent_70%)] translate-y-1/3 -translate-x-1/4 pointer-events-none z-0"></div>
+
+<div class="app max-w-5xl mx-auto px-4 sm:px-6 py-8 md:py-12 relative z-10">
+
+  <!-- Header -->
+  <header class="text-center mb-10 md:mb-16 relative">
+    <button id="btnDarkMode" title="Przełącz motyw" class="icon-btn absolute right-0 top-0 hover:border-transparent" style="hover:background:var(--dusk)">
+      <span class="material-symbols-outlined" id="darkModeIcon">dark_mode</span>
+    </button>
+    <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full shadow-sm mb-4" style="background:var(--surface);border:1px solid var(--border)">
+      <span class="text-[10px] font-bold tracking-widest uppercase text-[var(--coral)]">Wakacje 2025</span>
+    </div>
+    <h1 class="text-5xl md:text-7xl font-black leading-none mb-3 tracking-tight" style="color:var(--text-main)">
+      Pakownik<span class="text-[var(--coral)]">.</span>
+    </h1>
+    <p class="font-medium tracking-wide text-sm md:text-base max-w-md mx-auto" style="color:var(--text-muted)">
+      Inteligentna lista pakowania. Spakuj się bez stresu.
+    </p>
+  </header>
+
+  <!-- Dashboard -->
+  <section class="mb-12">
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div class="dash-card lg:col-span-2 relative overflow-hidden group">
+        <div class="absolute inset-0 bg-gradient-to-br from-[var(--teal)] to-[var(--teal-dark)] opacity-0 group-hover:opacity-5 transition-opacity"></div>
+        <div class="flex justify-between items-start mb-4">
+          <div>
+            <h3 class="text-sm font-bold uppercase tracking-wider" style="color:var(--text-muted)">Postęp pakowania</h3>
+            <div class="text-4xl font-black mt-1" style="color:var(--text-main)"><span id="progressPct">0%</span></div>
+          </div>
+          <div class="w-12 h-12 rounded-full bg-[rgba(78,205,196,0.15)] flex items-center justify-center text-[var(--teal-dark)]">
+            <span class="material-symbols-outlined">luggage</span>
+          </div>
+        </div>
+        <div class="relative h-3 rounded-full overflow-hidden w-full" style="background:var(--surface2)">
+          <div class="absolute left-0 top-0 h-full bg-[var(--teal)] transition-all duration-700 ease-out w-0 rounded-full" id="progressFill"></div>
+        </div>
+        <div class="flex justify-between text-xs font-mono mt-2" style="color:var(--text-muted)">
+          <span>Spakowane: <strong id="packedCount" style="color:var(--text-main)">0</strong></span>
+          <span>Wszystkie: <strong id="totalCount" style="color:var(--text-main)">0</strong></span>
+        </div>
+      </div>
+      <div class="dash-card cursor-pointer" id="btnWeightMode">
+        <div class="flex justify-between items-start mb-2">
+          <h3 class="text-sm font-bold uppercase tracking-wider" style="color:var(--text-muted)">Waga bagażu</h3>
+          <span class="material-symbols-outlined text-[var(--yellow)]">scale</span>
+        </div>
+        <div class="mt-auto">
+          <div class="text-2xl font-bold mb-1" style="color:var(--text-main)" id="weightCurrent">0 g</div>
+          <div class="text-xs flex items-center gap-1" style="color:var(--text-muted)">
+            Limit:
+            <input aria-label="Limit wagowy" class="w-16 p-0 border-0 border-b text-xs focus:ring-0 text-right bg-transparent focus:outline-none" style="border-color:var(--border);color:var(--text-main)" id="weightLimit" type="number" value="20000"/> g
+          </div>
+          <div class="w-full h-1.5 rounded-full mt-3 overflow-hidden" style="background:var(--surface2)">
+            <div class="h-full bg-[var(--yellow)] w-0 transition-all duration-500" id="weightProgressFill"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Templates -->
+  <section class="mb-10">
+    <h3 class="text-xs font-bold uppercase tracking-widest mb-4" style="color:var(--text-muted)">Szablony na start</h3>
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 md:gap-4" id="templatesGrid"></div>
+  </section>
+
+  <!-- Main card -->
+  <div class="rounded-2xl shadow-sm mb-12 relative" style="background:var(--surface);border:1px solid var(--border)">
+    <!-- List header -->
+    <div class="p-4 md:p-6 rounded-t-2xl flex flex-col md:flex-row gap-4 items-start md:items-center justify-between" style="border-bottom:1px solid var(--border);background:var(--surface2)">
+      <div class="w-full md:w-auto flex-1">
+        <label class="block text-[10px] font-bold uppercase tracking-widest mb-1" style="color:var(--text-muted)" for="listName">Nazwa wyjazdu</label>
+        <input class="w-full bg-transparent border-0 border-b-2 border-transparent focus:ring-0 p-0 text-xl md:text-2xl font-bold" style="color:var(--text-main)" id="listName" type="text" value="Moje wakacje 2025"/>
+      </div>
+      <div class="flex flex-wrap gap-2 w-full md:w-auto justify-end">
+        <div class="relative" id="exportDropdownContainer">
+          <button id="btnToggleExport" aria-label="Eksportuj" class="icon-btn">
+            <span class="material-symbols-outlined">ios_share</span>
+          </button>
+          <div id="exportDropdown" class="absolute right-0 top-full mt-2 w-36 rounded-xl py-1 hidden z-30 shadow-xl" style="background:var(--surface);border:1px solid var(--border)">
+            <button class="w-full text-left px-4 py-2 text-xs hover:opacity-80" style="color:var(--text-main)" id="btnExportJSON">Eksport JSON</button>
+            <button class="w-full text-left px-4 py-2 text-xs hover:opacity-80" style="color:var(--text-main)" id="btnExportCSV">Eksport CSV</button>
+            <button class="w-full text-left px-4 py-2 text-xs hover:opacity-80" style="color:var(--text-main)" id="btnExportTXT">Eksport TXT</button>
+          </div>
+        </div>
+        <button aria-label="Importuj" id="btnImportTrigger" class="icon-btn" title="Import z pliku .json">
+          <span class="material-symbols-outlined">upload_file</span>
+        </button>
+        <input type="file" id="importFileInput" accept=".json" class="hidden"/>
+        <button aria-label="Drukuj" class="icon-btn" onclick="window.print()" title="Drukuj">
+          <span class="material-symbols-outlined">print</span>
+        </button>
+        <button aria-label="Rozpakuj wszystko" id="btnUnpack" class="icon-btn" title="Rozpakuj wszystko">
+          <span class="material-symbols-outlined">restart_alt</span>
+        </button>
+        <button aria-label="Wyczyść listę" id="btnClear" class="icon-btn" title="Wyczyść listę">
+          <span class="material-symbols-outlined">delete_sweep</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Add form -->
+    <div class="p-4 md:p-6" style="border-bottom:1px solid var(--border)">
+      <form class="flex flex-col md:flex-row gap-3" id="addForm" onsubmit="event.preventDefault();addItem();">
+        <div class="relative flex-1">
+          <div class="absolute inset-y-0 left-3 flex items-center pointer-events-none" style="color:var(--text-muted)">
+            <span class="material-symbols-outlined">add_circle</span>
+          </div>
+          <input autocomplete="off" class="w-full pl-10 pr-4 py-3 rounded-xl text-sm border focus:outline-none focus:ring-2 focus:ring-[var(--teal)]" style="background:var(--surface2);border-color:var(--border);color:var(--text-main)" id="newItem" placeholder="Co chcesz spakować?" type="text"/>
+        </div>
+        <div class="relative w-full md:w-48">
+          <div class="absolute inset-y-0 left-3 flex items-center pointer-events-none" style="color:var(--text-muted)">
+            <span class="material-symbols-outlined text-[20px]">category</span>
+          </div>
+          <select class="w-full pl-10 pr-8 py-3 rounded-xl text-sm appearance-none cursor-pointer font-medium border focus:outline-none focus:ring-2 focus:ring-[var(--teal)]" style="background:var(--surface2);border-color:var(--border);color:var(--text-main)" id="catSelect"></select>
+          <div class="absolute inset-y-0 right-3 flex items-center pointer-events-none" style="color:var(--text-muted)">
+            <span class="material-symbols-outlined text-[20px]">expand_more</span>
+          </div>
+        </div>
+        <button class="w-full md:w-auto px-6 py-3 rounded-xl font-medium text-sm flex items-center justify-center gap-2 shadow-lg transition-colors hover:bg-[var(--teal)]" style="background:var(--dusk);color:var(--surface)" id="btnAdd" type="submit">
+          Dodaj
+        </button>
+      </form>
+    </div>
+
+    <!-- Tabs -->
+    <div class="px-4 md:px-6 pt-4 pb-2 overflow-x-auto">
+      <div class="flex gap-2 min-w-max pb-2" id="categoryTabs" role="tablist"></div>
+    </div>
+
+    <!-- Items -->
+    <div class="min-h-[300px] rounded-b-2xl overflow-hidden" id="itemsContainer" role="list"></div>
+  </div>
+
+  <footer class="text-center text-xs pb-8" style="color:var(--text-muted)">
+    <p>© 2025 Pakownik. Made for travelers.</p>
+  </footer>
+</div>
+
+<!-- Toast -->
+<div class="fixed bottom-8 left-1/2 -translate-x-1/2 px-6 py-3 rounded-full shadow-xl flex items-center gap-3 text-sm z-50 translate-y-20 opacity-0 transition-all duration-300 font-medium" style="background:var(--dusk);color:var(--surface)" id="toast">
+  <span class="material-symbols-outlined text-[var(--teal)]">check_circle</span>
+  <span class="toast-msg">Komunikat</span>
+</div>
+
+<!-- PWA Banner -->
+<div id="pwa-banner">
+  <span class="material-symbols-outlined text-[var(--teal)] text-2xl flex-shrink-0">install_mobile</span>
+  <div class="flex-1 min-w-0">
+    <p class="text-sm font-bold" style="color:var(--text-main)">Zainstaluj Pakownika</p>
+    <p class="text-xs" style="color:var(--text-muted)">Działa offline · zawsze pod ręką</p>
+  </div>
+  <button id="btnPwaInstall" class="px-4 py-2 rounded-xl text-sm font-bold text-white flex-shrink-0 transition-colors" style="background:var(--teal)">
+    Zainstaluj
+  </button>
+  <button id="btnPwaDismiss" class="icon-btn flex-shrink-0">
+    <span class="material-symbols-outlined text-[18px]">close</span>
+  </button>
+</div>
+
+<script>
+'use strict';
+
+// ── PWA Manifest ──────────────────────────────────────────────────────────────
+(function() {
+  const manifest = {
+    name: 'Pakownik',
+    short_name: 'Pakownik',
+    description: 'Inteligentna lista pakowania.',
+    start_url: './',
+    display: 'standalone',
+    background_color: '#1E1B2E',
+    theme_color: '#2D2438',
+    icons: [{
+      src: 'data:image/svg+xml,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192"><rect width="192" height="192" rx="40" fill="#2D2438"/><text x="96" y="135" text-anchor="middle" font-size="115" font-family="Georgia,serif" fill="#FF6B6B">P</text></svg>`),
+      sizes: '192x192', type: 'image/svg+xml'
+    }]
+  };
+  const blob = new Blob([JSON.stringify(manifest)], {type:'application/json'});
+  document.getElementById('pwa-manifest').href = URL.createObjectURL(blob);
+})();
+
+// ── PWA Install ───────────────────────────────────────────────────────────────
+let deferredPrompt = null;
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault(); deferredPrompt = e;
+  document.getElementById('pwa-banner').classList.add('show');
+});
+window.addEventListener('appinstalled', () => {
+  document.getElementById('pwa-banner').classList.remove('show');
+  deferredPrompt = null;
+  toast('Zainstalowano! Znajdziesz nas na ekranie głównym 🎉');
+});
+document.getElementById('btnPwaInstall').addEventListener('click', async () => {
+  if (!deferredPrompt) return;
+  deferredPrompt.prompt();
+  const { outcome } = await deferredPrompt.userChoice;
+  if (outcome === 'accepted') document.getElementById('pwa-banner').classList.remove('show');
+  deferredPrompt = null;
+});
+document.getElementById('btnPwaDismiss').addEventListener('click', () => {
+  document.getElementById('pwa-banner').classList.remove('show');
+});
+
+// ── Service Worker (offline cache) ────────────────────────────────────────────
+if ('serviceWorker' in navigator) {
+  const swCode = `
+    const CACHE='pakownik-v1';
+    self.addEventListener('install', e=>{self.skipWaiting();});
+    self.addEventListener('activate', e=>{self.clients.claim();});
+    self.addEventListener('fetch', e=>{
+      if(e.request.method!=='GET') return;
+      e.respondWith(caches.match(e.request).then(r=>r||fetch(e.request).then(res=>{
+        const c=res.clone();
+        caches.open(CACHE).then(cache=>cache.put(e.request,c));
+        return res;
+      }).catch(()=>caches.match(e.request))));
+    });
+  `;
+  navigator.serviceWorker.register(
+    URL.createObjectURL(new Blob([swCode], {type:'application/javascript'}))
+  ).catch(()=>{});
+}
+
+// ── Dark Mode ─────────────────────────────────────────────────────────────────
+const DARK_KEY = 'pakownik_dark';
+let isDark = localStorage.getItem(DARK_KEY) === 'true' ||
+  (localStorage.getItem(DARK_KEY) === null && window.matchMedia('(prefers-color-scheme: dark)').matches);
+
+function applyDark(dark) {
+  document.documentElement.classList.toggle('dark', dark);
+  document.getElementById('darkModeIcon').textContent = dark ? 'light_mode' : 'dark_mode';
+  isDark = dark;
+  localStorage.setItem(DARK_KEY, String(dark));
+}
+applyDark(isDark);
+
+document.getElementById('btnDarkMode').addEventListener('click', () => applyDark(!isDark));
+
+// ── Config ────────────────────────────────────────────────────────────────────
+const CATEGORIES = [
+  { id: 'documents',   name: 'Dokumenty',   icon: 'description',      color: 'text-blue-500' },
+  { id: 'clothes',     name: 'Ubrania',     icon: 'checkroom',        color: 'text-purple-500' },
+  { id: 'hygiene',     name: 'Higiena',     icon: 'clean_hands',      color: 'text-cyan-500' },
+  { id: 'electronics', name: 'Elektronika', icon: 'devices',          color: 'text-slate-500' },
+  { id: 'health',      name: 'Zdrowie',     icon: 'medical_services', color: 'text-red-500' },
+  { id: 'beach',       name: 'Plaża',       icon: 'beach_access',     color: 'text-amber-500' },
+  { id: 'food',        name: 'Jedzenie',    icon: 'restaurant',       color: 'text-orange-500' },
+  { id: 'other',       name: 'Inne',        icon: 'grid_view',        color: 'text-stone-500' },
+];
+const CAT_MAP = Object.fromEntries(CATEGORIES.map(c => [c.id, c]));
+const TEMPLATES = [
+  { name: 'Plaża', icon: 'beach_access', items: [
+    {text:'Paszport/dowód',cat:'documents',qty:1},{text:'Bilety/rezerwacje',cat:'documents',qty:1},
+    {text:'Karta płatnicza',cat:'documents',qty:1},{text:'Ubezpieczenie',cat:'documents',qty:1},
+    {text:'Krem z filtrem SPF50',cat:'hygiene',qty:2},{text:'Balsam po słońcu',cat:'hygiene',qty:1},
+    {text:'Okulary przeciwsłoneczne',cat:'clothes',qty:1},{text:'Kapelusz/czapka',cat:'clothes',qty:1},
+    {text:'Strój kąpielowy',cat:'clothes',qty:2},{text:'Sandały',cat:'clothes',qty:1},
+    {text:'Ręcznik plażowy',cat:'beach',qty:2},{text:'Mata plażowa',cat:'beach',qty:1},
+    {text:'Torba plażowa',cat:'beach',qty:1},{text:'Powerbank',cat:'electronics',qty:1},
+    {text:'Ładowarka',cat:'electronics',qty:1},{text:'Leki na ból głowy',cat:'health',qty:1},
+    {text:'Plastry',cat:'health',qty:1},
+  ]},
+  { name: 'Góry', icon: 'hiking', items: [
+    {text:'Paszport/dowód',cat:'documents',qty:1},{text:'Bilety',cat:'documents',qty:1},
+    {text:'Kurtka przeciwdeszczowa',cat:'clothes',qty:1},{text:'Buty trekkingowe',cat:'clothes',qty:1},
+    {text:'Termos',cat:'other',qty:1},{text:'Plecak',cat:'other',qty:1},
+    {text:'Latarka/czołówka',cat:'other',qty:1},{text:'Kijki trekkingowe',cat:'other',qty:2},
+    {text:'Mapa/GPS',cat:'other',qty:1},{text:'Krem z filtrem',cat:'hygiene',qty:1},
+    {text:'Leki na ból mięśni',cat:'health',qty:1},{text:'Powerbank',cat:'electronics',qty:1},
+  ]},
+  { name: 'Miasto', icon: 'location_city', items: [
+    {text:'Paszport/dowód',cat:'documents',qty:1},{text:'Bilety/rezerwacje',cat:'documents',qty:1},
+    {text:'Mapa miasta',cat:'documents',qty:1},{text:'Wygodne buty',cat:'clothes',qty:1},
+    {text:'Aparat fotograficzny',cat:'electronics',qty:1},{text:'Słuchawki',cat:'electronics',qty:1},
+    {text:'Powerbank',cat:'electronics',qty:1},{text:'Plecak/torba',cat:'other',qty:1},
+  ]},
+  { name: 'Camping', icon: 'camping', items: [
+    {text:'Namiot',cat:'other',qty:1},{text:'Śpiwór',cat:'other',qty:1},
+    {text:'Materac/karimata',cat:'other',qty:1},{text:'Latarka',cat:'other',qty:1},
+    {text:'Zapalniczka/zapałki',cat:'other',qty:1},{text:'Nóż kempingowy',cat:'other',qty:1},
+    {text:'Repelent na owady',cat:'hygiene',qty:1},{text:'Dowód/paszport',cat:'documents',qty:1},
+    {text:'Woda pitna 1.5L',cat:'food',qty:4},{text:'Jedzenie na drogę',cat:'food',qty:1},
+  ]},
+];
+const LS_KEY = 'pakownik_v4';
+
+// ── State ─────────────────────────────────────────────────────────────────────
+let state = {
+  listName: 'Wakacje 2025',
+  items: [],
+  filter: 'all',
+  collapsed: {},
+  weightMode: false,
+  weightLimit: 20000,
+};
+
+// ── Utils ─────────────────────────────────────────────────────────────────────
+function genId() {
+  return crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2) + Date.now().toString(36);
+}
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function sanitizeItem(it) {
+  return {
+    id:     (typeof it.id==='string'&&it.id)?it.id:genId(),
+    text:   (typeof it.text==='string'&&it.text.trim())?it.text.trim().slice(0,200):'Bez nazwy',
+    cat:    CAT_MAP[it.cat]?it.cat:'other',
+    qty:    (Number.isInteger(it.qty)&&it.qty>0&&it.qty<1000)?it.qty:1,
+    packed: it.packed===true,
+    weight: (Number.isFinite(it.weight)&&it.weight>=0)?Math.round(it.weight):0,
+    fav:    it.fav===true,
+    order:  typeof it.order==='number'?it.order:0,
+  };
+}
+let toastTimer;
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.querySelector('.toast-msg').textContent = msg;
+  t.classList.remove('translate-y-20','opacity-0');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>t.classList.add('translate-y-20','opacity-0'), 2800);
+}
+
+// ── Persistence ───────────────────────────────────────────────────────────────
+function saveState() {
+  try { localStorage.setItem(LS_KEY, JSON.stringify({
+    listName:state.listName, items:state.items, collapsed:state.collapsed,
+    weightMode:state.weightMode, weightLimit:state.weightLimit,
+  })); } catch(e) {}
+}
+function loadState() {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (!raw) return;
+    const s = JSON.parse(raw);
+    if (typeof s.listName==='string') state.listName=s.listName;
+    if (Array.isArray(s.items)) state.items=s.items.map(sanitizeItem);
+    if (s.collapsed&&typeof s.collapsed==='object') state.collapsed=s.collapsed;
+    if (s.weightMode===true) state.weightMode=true;
+    if (Number.isFinite(s.weightLimit)&&s.weightLimit>0) state.weightLimit=s.weightLimit;
+  } catch(e) {}
+}
+
+// ── Stats ─────────────────────────────────────────────────────────────────────
+function renderStats() {
+  const total=state.items.length, packed=state.items.filter(i=>i.packed).length;
+  const pct=total?Math.round(packed/total*100):0;
+  document.getElementById('totalCount').textContent=total;
+  document.getElementById('packedCount').textContent=packed;
+  document.getElementById('progressPct').textContent=pct+'%';
+  document.getElementById('progressFill').style.width=pct+'%';
+  const totalG=state.items.reduce((s,i)=>s+(i.weight||0)*i.qty,0);
+  const limit=state.weightLimit||1;
+  const wPct=Math.min(100,Math.round(totalG/limit*100));
+  const fmt=g=>g>=1000?(g/1000).toFixed(2).replace(/\.?0+$/,'')+'kg':g+'g';
+  document.getElementById('weightCurrent').textContent=fmt(totalG);
+  const wFill=document.getElementById('weightProgressFill');
+  wFill.style.width=wPct+'%';
+  wFill.style.backgroundColor=wPct>=100?'var(--coral)':'var(--yellow)';
+  document.getElementById('btnWeightMode').style.borderColor=state.weightMode?'var(--yellow)':'';
+}
+
+// ── Tabs ──────────────────────────────────────────────────────────────────────
+function renderTabs() {
+  const usedCats=new Set(state.items.map(i=>i.cat));
+  const container=document.getElementById('categoryTabs');
+  const active = 'bg-[var(--dusk)] shadow-md border border-transparent';
+  const inactive = 'border hover:opacity-80';
+  let html=`<button class="cat-tab px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${state.filter==='all'?active:inactive}"
+    style="${state.filter==='all'?'color:var(--surface)':'background:var(--surface);border-color:var(--border);color:var(--text-muted)'}"
+    data-filter="all">Wszystkie</button>`;
+  CATEGORIES.forEach(c=>{
+    if(!usedCats.has(c.id)) return;
+    const isA=state.filter===c.id;
+    html+=`<button class="cat-tab px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap flex items-center gap-2 ${isA?active:inactive}"
+      style="${isA?'color:var(--surface)':'background:var(--surface);border-color:var(--border);color:var(--text-muted)'}"
+      data-filter="${c.id}">
+      <span class="material-symbols-outlined text-[16px] ${isA?'':''+c.color}">${c.icon}</span>${c.name}
+    </button>`;
+  });
+  if(container.innerHTML!==html) container.innerHTML=html;
+}
+
+// ── Items ─────────────────────────────────────────────────────────────────────
+function renderItems() {
+  const container=document.getElementById('itemsContainer');
+  const filtered=state.filter==='all'?state.items:state.items.filter(i=>i.cat===state.filter);
+  if(filtered.length===0){
+    const msg=state.items.length===0?'Lista jest pusta. Dodaj przedmioty lub wybierz szablon.':'Brak przedmiotów w tej kategorii.';
+    container.innerHTML=`<div class="flex flex-col items-center justify-center py-20 text-center">
+      <div class="w-16 h-16 rounded-full flex items-center justify-center mb-4" style="background:var(--surface2)">
+        <span class="material-symbols-outlined text-3xl" style="color:var(--border)">inbox</span>
+      </div>
+      <p class="text-sm" style="color:var(--text-muted)">${msg}</p></div>`;
+    return;
+  }
+  const byCat={};
+  CATEGORIES.forEach(c=>{byCat[c.id]=[];});
+  filtered.forEach(item=>byCat[item.cat].push(item));
+  const activeCats=CATEGORIES.filter(c=>byCat[c.id].length>0);
+  container.innerHTML='';
+  activeCats.forEach(cat=>{
+    const catItems=byCat[cat.id];
+    const packedCount=catItems.filter(i=>i.packed).length;
+    const isCollapsed=!!state.collapsed[cat.id];
+    const section=document.createElement('div');
+    section.className='border-b last:border-0';
+    section.style.borderColor='var(--border)';
+    const header=document.createElement('div');
+    header.className='flex items-center justify-between px-6 py-4 cursor-pointer select-none transition-colors';
+    header.style.background='var(--surface)';
+    header.onmouseenter=()=>header.style.background='var(--surface2)';
+    header.onmouseleave=()=>header.style.background='var(--surface)';
+    header.onclick=()=>{state.collapsed[cat.id]=!state.collapsed[cat.id];saveState();render();};
+    header.innerHTML=`
+      <div class="flex items-center gap-3">
+        <div class="w-8 h-8 rounded-lg flex items-center justify-center" style="background:var(--surface2);border:1px solid var(--border)">
+          <span class="material-symbols-outlined text-[18px] ${cat.color}">${cat.icon}</span>
+        </div>
+        <div>
+          <h4 class="text-sm font-bold" style="color:var(--text-main)">${cat.name}</h4>
+          <p class="text-[10px] font-mono tracking-wide" style="color:var(--text-muted)">${packedCount}/${catItems.length} SPAKOWANE</p>
+        </div>
+      </div>
+      <span class="material-symbols-outlined transition-transform duration-300 ${isCollapsed?'-rotate-90':''}" style="color:var(--border)">expand_more</span>`;
+    section.appendChild(header);
+    if(!isCollapsed){
+      const body=document.createElement('div');
+      body.dataset.cat=cat.id;
+      const sorted=[...catItems].sort((a,b)=>{
+        if(a.packed!==b.packed) return Number(a.packed)-Number(b.packed);
+        return (a.order||0)-(b.order||0);
+      });
+      sorted.forEach(item=>{
+        const row=document.createElement('div');
+        row.className=`item-row flex items-center gap-3 px-4 py-3 border-t group/item ${item.packed?'packed':''}`;
+        row.style.borderColor='var(--surface2)';
+        row.dataset.id=item.id;
+        row.draggable=true;
+        row.innerHTML=buildRowHTML(item);
+        body.appendChild(row);
+      });
+      setupDragDrop(body);
+      section.appendChild(body);
+    }
+    container.appendChild(section);
+  });
+}
+
+function buildRowHTML(item) {
+  const p=item.packed, w=item.weight||0;
+  const wv=state.weightMode?'':'hidden';
+  return `
+    <span class="drag-handle flex-shrink-0 flex items-center opacity-0 group-hover/item:opacity-100 transition-opacity select-none" style="color:var(--border)" title="Przeciągnij aby sortować">
+      <span class="material-symbols-outlined text-[20px]">drag_indicator</span>
+    </span>
+    <button class="check-btn flex-shrink-0 w-6 h-6 rounded border-2 flex items-center justify-center transition-all ${p?'bg-[var(--teal)] border-[var(--teal)]':'border-stone-300 hover:border-[var(--teal)]'}"
+      data-action="toggle" data-id="${item.id}" aria-label="Przełącz status">
+      <span class="material-symbols-outlined text-white text-[16px] ${p?'animate-check':'opacity-0'}">check</span>
+    </button>
+    <div class="flex-1 min-w-0 mx-1">
+      <div class="item-text text-sm font-medium break-words outline-none border-b border-transparent focus:border-[var(--teal)] py-0.5 cursor-text rounded"
+        style="color:var(--text-main)" contenteditable="false" data-action="edit" data-id="${item.id}">${escHtml(item.text)}</div>
+    </div>
+    <div class="flex items-center gap-1 ${wv}">
+      <input type="number" class="w-14 text-right bg-transparent border-0 border-b text-xs font-mono focus:ring-0 focus:outline-none p-0"
+        style="border-color:var(--border);color:var(--text-main)"
+        value="${w}" min="0" max="99999" data-action="weight" data-id="${item.id}">
+      <span class="text-[10px]" style="color:var(--text-muted)">g</span>
+    </div>
+    <div class="flex items-center gap-1 opacity-100 lg:opacity-0 lg:group-hover/item:opacity-100 transition-opacity">
+      <div class="flex items-center rounded-lg h-7 mr-1" style="border:1px solid var(--border);background:var(--surface)">
+        <button class="w-6 h-full flex items-center justify-center rounded-l-lg hover:opacity-70 transition-opacity" style="color:var(--text-muted)" data-action="dec" data-id="${item.id}">-</button>
+        <span class="text-xs font-mono font-medium px-1 min-w-[1.5rem] text-center" style="color:var(--text-main)">${item.qty}</span>
+        <button class="w-6 h-full flex items-center justify-center rounded-r-lg hover:opacity-70 transition-opacity" style="color:var(--text-muted)" data-action="inc" data-id="${item.id}">+</button>
+      </div>
+      <button class="w-7 h-7 flex items-center justify-center rounded hover:text-amber-400 hover:bg-amber-50 transition-colors ${item.fav?'text-amber-400':''}"
+        style="${item.fav?'':'color:var(--border)'}" data-action="fav" data-id="${item.id}" title="Ulubione">
+        <span class="material-symbols-outlined text-[18px]">star</span>
+      </button>
+      <button class="w-7 h-7 flex items-center justify-center rounded hover:text-[var(--coral)] hover:bg-red-50 transition-colors"
+        style="color:var(--border)" data-action="delete" data-id="${item.id}" title="Usuń">
+        <span class="material-symbols-outlined text-[18px]">delete</span>
+      </button>
+    </div>`;
+}
+
+// ── Drag & Drop ───────────────────────────────────────────────────────────────
+let dragSrc = null;
+
+function reorderItems(srcId, tgtId) {
+  const si=state.items.findIndex(i=>i.id===srcId);
+  const ti=state.items.findIndex(i=>i.id===tgtId);
+  if(si===-1||ti===-1||si===ti) return;
+  const [moved]=state.items.splice(si,1);
+  state.items.splice(ti,0,moved);
+  let ord=0;
+  state.items.forEach(it=>{if(it.cat===moved.cat) it.order=ord++;});
+  saveState(); render();
+}
+
+function setupDragDrop(body) {
+  // Desktop drag
+  body.addEventListener('dragstart', e=>{
+    if(!e.target.closest('.drag-handle')){e.preventDefault();return;}
+    dragSrc=e.target.closest('.item-row');
+    if(!dragSrc) return;
+    dragSrc.classList.add('dragging');
+    e.dataTransfer.effectAllowed='move';
+    e.dataTransfer.setData('text/plain', dragSrc.dataset.id);
+  });
+  body.addEventListener('dragend', ()=>{
+    body.querySelectorAll('.dragging').forEach(r=>r.classList.remove('dragging'));
+    body.querySelectorAll('.drag-over').forEach(r=>r.classList.remove('drag-over'));
+    dragSrc=null;
+  });
+  body.addEventListener('dragover', e=>{
+    e.preventDefault(); e.dataTransfer.dropEffect='move';
+    body.querySelectorAll('.drag-over').forEach(r=>r.classList.remove('drag-over'));
+    const row=e.target.closest('.item-row');
+    if(row&&row!==dragSrc) row.classList.add('drag-over');
+  });
+  body.addEventListener('dragleave', e=>{
+    if(!body.contains(e.relatedTarget)) body.querySelectorAll('.drag-over').forEach(r=>r.classList.remove('drag-over'));
+  });
+  body.addEventListener('drop', e=>{
+    e.preventDefault();
+    const tgt=e.target.closest('.item-row');
+    if(!tgt||!dragSrc||tgt===dragSrc) return;
+    body.querySelectorAll('.drag-over').forEach(r=>r.classList.remove('drag-over'));
+    reorderItems(dragSrc.dataset.id, tgt.dataset.id);
+  });
+
+  // Touch drag
+  let touchRow=null, clone=null, offsetY=0;
+  body.addEventListener('touchstart', e=>{
+    const h=e.target.closest('.drag-handle');
+    if(!h) return;
+    touchRow=h.closest('.item-row');
+    if(!touchRow) return;
+    const rect=touchRow.getBoundingClientRect();
+    offsetY=e.touches[0].clientY-rect.top;
+    clone=touchRow.cloneNode(true);
+    Object.assign(clone.style,{
+      position:'fixed',left:rect.left+'px',top:rect.top+'px',
+      width:rect.width+'px',opacity:'0.85',zIndex:'999',
+      pointerEvents:'none',borderRadius:'8px',
+      boxShadow:'0 8px 24px rgba(0,0,0,0.2)',
+      background:'var(--surface)',
+    });
+    document.body.appendChild(clone);
+    touchRow.style.opacity='0.3';
+  },{passive:true});
+  body.addEventListener('touchmove', e=>{
+    if(!touchRow||!clone) return;
+    e.preventDefault();
+    clone.style.top=(e.touches[0].clientY-offsetY)+'px';
+    body.querySelectorAll('.drag-over').forEach(r=>r.classList.remove('drag-over'));
+    const el=document.elementFromPoint(e.touches[0].clientX, e.touches[0].clientY);
+    const over=el&&el.closest('.item-row');
+    if(over&&over!==touchRow) over.classList.add('drag-over');
+  },{passive:false});
+  body.addEventListener('touchend', ()=>{
+    if(!touchRow) return;
+    touchRow.style.opacity='';
+    clone&&clone.remove(); clone=null;
+    const over=body.querySelector('.drag-over');
+    body.querySelectorAll('.drag-over').forEach(r=>r.classList.remove('drag-over'));
+    if(over&&over!==touchRow) reorderItems(touchRow.dataset.id, over.dataset.id);
+    touchRow=null;
+  });
+}
+
+// ── Templates ─────────────────────────────────────────────────────────────────
+function renderTemplates() {
+  document.getElementById('templatesGrid').innerHTML=TEMPLATES.map((t,i)=>`
+    <div class="p-4 rounded-xl cursor-pointer shadow-sm hover:shadow-md transition-all group relative overflow-hidden"
+      style="background:var(--surface);border:1px solid var(--border)"
+      onmouseenter="this.style.borderColor='var(--teal)'" onmouseleave="this.style.borderColor='var(--border)'"
+      onclick="loadTemplate(${i})">
+      <div class="absolute right-0 top-0 p-4 opacity-10 group-hover:scale-110 transition-transform">
+        <span class="material-symbols-outlined text-4xl" style="color:var(--text-main)">${t.icon}</span>
+      </div>
+      <h4 class="font-bold text-sm mb-1 relative z-10" style="color:var(--text-main)">${t.name}</h4>
+      <p class="text-[10px] font-mono relative z-10" style="color:var(--text-muted)">${t.items.length} pozycji</p>
+    </div>`).join('');
+}
+function loadTemplate(idx) {
+  if(state.items.length>0&&!confirm('Zastąpić obecną listę tym szablonem?')) return;
+  const t=TEMPLATES[idx];
+  state.items=t.items.map((it,i)=>({...sanitizeItem(it),id:genId(),packed:false,order:i}));
+  state.listName=t.name; state.filter='all';
+  saveState(); render();
+  toast(`Załadowano szablon: ${t.name}`);
+}
+
+// ── Actions ───────────────────────────────────────────────────────────────────
+function addItem() {
+  const inp=document.getElementById('newItem');
+  const text=inp.value.trim().slice(0,200);
+  if(!text){inp.focus();return;}
+  const cat=document.getElementById('catSelect').value;
+  const maxOrder=Math.max(0,...state.items.filter(i=>i.cat===cat).map(i=>i.order||0))+1;
+  state.items.push({id:genId(),text,cat,qty:1,packed:false,weight:0,fav:false,order:maxOrder});
+  if(state.filter!=='all'&&state.filter!==cat) state.filter=cat;
+  inp.value=''; inp.focus(); saveState(); render(); toast('Dodano do listy');
+}
+function togglePacked(id) {
+  const it=state.items.find(i=>i.id===id);
+  if(!it) return;
+  it.packed=!it.packed; saveState();
+  const row=document.querySelector(`.item-row[data-id="${id}"]`);
+  if(row){
+    row.classList.toggle('packed',it.packed);
+    const icon=row.querySelector('.check-btn .material-symbols-outlined');
+    const btn=row.querySelector('.check-btn');
+    if(it.packed){
+      icon.classList.remove('opacity-0'); icon.classList.add('animate-check');
+      btn.classList.add('bg-[var(--teal)]','border-[var(--teal)]'); btn.classList.remove('border-stone-300');
+    } else {
+      icon.classList.add('opacity-0'); icon.classList.remove('animate-check');
+      btn.classList.remove('bg-[var(--teal)]','border-[var(--teal)]'); btn.classList.add('border-stone-300');
+    }
+  }
+  renderStats();
+  setTimeout(()=>render(),350);
+}
+function deleteItem(id) {
+  const el=document.querySelector(`.item-row[data-id="${id}"]`);
+  if(el){el.style.transform='translateX(20px)';el.style.opacity='0';}
+  setTimeout(()=>{state.items=state.items.filter(i=>i.id!==id);saveState();render();},200);
+}
+function toggleFav(id) {
+  const it=state.items.find(i=>i.id===id);
+  if(it){it.fav=!it.fav;saveState();render();if(it.fav) toast('Dodano do ulubionych');}
+}
+
+// ── Edit ──────────────────────────────────────────────────────────────────────
+function startEdit(textEl) {
+  textEl.contentEditable='true'; textEl.focus();
+  const r=document.createRange(); r.selectNodeContents(textEl);
+  const s=window.getSelection(); s.removeAllRanges(); s.addRange(r);
+}
+function finishEdit(textEl, id) {
+  textEl.contentEditable='false';
+  const newText=textEl.innerText.trim().slice(0,200);
+  const it=state.items.find(i=>i.id===id);
+  if(!it) return;
+  if(newText&&newText!==it.text){it.text=newText;saveState();toast('Zaktualizowano nazwę');}
+  else textEl.innerText=it.text;
+}
+
+// ── Export/Import ─────────────────────────────────────────────────────────────
+function download(content,filename,type){
+  const url=URL.createObjectURL(new Blob([content],{type}));
+  const a=document.createElement('a'); a.href=url; a.download=filename; a.click();
+  setTimeout(()=>URL.revokeObjectURL(url),100);
+}
+function getFileName(ext){
+  return(state.listName||'lista').replace(/[^\w\s\u00C0-\u024F-]/g,'_').slice(0,60)+'.'+ext;
+}
+
+// ── Wiring ────────────────────────────────────────────────────────────────────
+document.addEventListener('click', e=>{
+  if(!e.target.closest('#exportDropdownContainer'))
+    document.getElementById('exportDropdown').classList.add('hidden');
+});
+document.getElementById('btnToggleExport').addEventListener('click', e=>{
+  e.stopPropagation();
+  document.getElementById('exportDropdown').classList.toggle('hidden');
+});
+document.getElementById('exportDropdown').addEventListener('click', ()=>{
+  document.getElementById('exportDropdown').classList.add('hidden');
+});
+document.getElementById('btnImportTrigger').addEventListener('click', ()=>{
+  document.getElementById('importFileInput').click();
+});
+document.getElementById('importFileInput').addEventListener('change', e=>{
+  const file=e.target.files[0]; if(!file) return;
+  const reader=new FileReader();
+  reader.onload=evt=>{
+    try{
+      const data=JSON.parse(evt.target.result);
+      if(!data||!Array.isArray(data.items)) throw new Error('Brak tablicy items.');
+      if(state.items.length>0&&!confirm('Załadować plik i zastąpić obecną listę?')){e.target.value='';return;}
+      state.items=data.items.map(sanitizeItem);
+      state.listName=data.name||'Zaimportowana lista';
+      state.filter='all'; saveState(); render(); toast('Lista zaimportowana!');
+    } catch(err){alert('Błąd JSON: '+err.message);}
+    e.target.value='';
+  };
+  reader.readAsText(file);
+});
+
+document.addEventListener('DOMContentLoaded', ()=>{
+  document.getElementById('catSelect').innerHTML=CATEGORIES.map(c=>`<option value="${c.id}">${c.name}</option>`).join('');
+  document.getElementById('btnWeightMode').addEventListener('click', e=>{
+    if(e.target.tagName==='INPUT') return;
+    state.weightMode=!state.weightMode; saveState(); render();
+  });
+  document.getElementById('btnUnpack').addEventListener('click', e=>{
+    e.stopPropagation();
+    if(!state.items.some(i=>i.packed)) return;
+    if(confirm('Rozpakować wszystko?')){state.items.forEach(i=>i.packed=false);saveState();render();toast('Rozpakowano!');}
+  });
+  document.getElementById('btnClear').addEventListener('click', e=>{
+    e.stopPropagation();
+    if(state.items.length&&confirm('Usunąć wszystkie przedmioty?')){state.items=[];saveState();render();toast('Lista wyczyszczona');}
+  });
+  document.getElementById('btnExportJSON').addEventListener('click', ()=>{
+    download(JSON.stringify({name:state.listName,items:state.items},null,2),getFileName('json'),'application/json');
+  });
+  document.getElementById('btnExportCSV').addEventListener('click', ()=>{
+    const bom='\uFEFF';
+    const csv=['Przedmiot,Kategoria,Ilosc,Waga,Spakowane',
+      ...state.items.map(i=>`"${i.text.replace(/"/g,'""')}","${i.cat}",${i.qty},${i.weight},${i.packed?'Tak':'Nie'}`)
+    ].join('\n');
+    download(bom+csv,getFileName('csv'),'text/csv');
+  });
+  document.getElementById('btnExportTXT').addEventListener('click', ()=>{
+    let txt=`${state.listName}\n================\n`;
+    state.items.forEach(i=>txt+=`[${i.packed?'x':' '}] ${i.text} (${i.qty})\n`);
+    download(txt,getFileName('txt'),'text/plain');
+  });
+  document.getElementById('listName').addEventListener('input', e=>{state.listName=e.target.value;saveState();});
+  document.getElementById('categoryTabs').addEventListener('click', e=>{
+    const btn=e.target.closest('[data-filter]');
+    if(btn){state.filter=btn.dataset.filter;render();}
+  });
+  document.getElementById('weightLimit').addEventListener('input', e=>{
+    state.weightLimit=parseInt(e.target.value)||0; saveState(); renderStats();
+  });
+
+  const container=document.getElementById('itemsContainer');
+  container.addEventListener('click', e=>{
+    const btn=e.target.closest('[data-action]');
+    if(!btn) return;
+    const id=btn.dataset.id, action=btn.dataset.action;
+    if(action==='toggle') togglePacked(id);
+    else if(action==='delete') deleteItem(id);
+    else if(action==='inc'){const it=state.items.find(i=>i.id===id);if(it){it.qty++;saveState();render();}}
+    else if(action==='dec'){const it=state.items.find(i=>i.id===id);if(it&&it.qty>1){it.qty--;saveState();render();}}
+    else if(action==='fav') toggleFav(id);
+    else if(action==='edit'){
+      const row=btn.closest('.item-row');
+      const textEl=row.querySelector('.item-text');
+      if(btn===textEl&&textEl.contentEditable==='true') return;
+      if(textEl.contentEditable==='true') finishEdit(textEl,id);
+      else startEdit(textEl);
+    }
+  });
+  container.addEventListener('input', e=>{
+    if(e.target.dataset.action==='weight'){
+      const it=state.items.find(i=>i.id===e.target.dataset.id);
+      if(it){it.weight=parseInt(e.target.value)||0;saveState();renderStats();}
+    }
+  });
+  container.addEventListener('keydown', e=>{
+    if(e.target.classList.contains('item-text')&&e.key==='Enter'){e.preventDefault();e.target.blur();}
+  });
+  container.addEventListener('blur', e=>{
+    if(e.target.classList.contains('item-text')) finishEdit(e.target,e.target.dataset.id);
+  },true);
+
+  loadState();
+  if(!localStorage.getItem(LS_KEY)){
+    state.items=[
+      {id:genId(),text:'Paszport',cat:'documents',qty:1,packed:false,weight:0,fav:false,order:0},
+      {id:genId(),text:'Ładowarka do telefonu',cat:'electronics',qty:1,packed:false,weight:0,fav:false,order:0},
+      {id:genId(),text:'Okulary przeciwsłoneczne',cat:'clothes',qty:1,packed:false,weight:0,fav:false,order:0},
+    ];
+    saveState();
+  }
+  render();
+  renderTemplates();
+});
+
+function render(){
+  const nameEl=document.getElementById('listName');
+  if(document.activeElement!==nameEl) nameEl.value=state.listName;
+  const wEl=document.getElementById('weightLimit');
+  if(document.activeElement!==wEl) wEl.value=state.weightLimit;
+  renderTabs(); renderItems(); renderStats();
+}
+</script>
+</body>
+</html>
